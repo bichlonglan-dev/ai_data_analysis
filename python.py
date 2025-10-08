@@ -181,5 +181,72 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"Có lỗi xảy ra khi đọc hoặc xử lý file: {e}. Vui lòng kiểm tra định dạng file.")
 
+# --- Phần hiện tại giữ nguyên toàn bộ ở trên ---
+
+
 else:
     st.info("Vui lòng tải lên file Excel để bắt đầu phân tích.")
+
+# ==============================================
+# 💬 KHUNG CHAT VỚI GEMINI (MỚI THÊM)
+# ==============================================
+
+st.markdown("---")
+st.subheader("💬 Trò chuyện với AI")
+
+# Lưu lịch sử hội thoại vào session_state
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# Giao diện nhập câu hỏi
+user_input = st.text_area("Nhập câu hỏi của bạn tại đây...", placeholder="Ví dụ: Hãy giải thích chỉ số thanh toán hiện hành là gì?")
+
+# Gọi API khi bấm nút
+if st.button("Gửi câu hỏi"):
+    if user_input.strip() == "":
+        st.warning("⚠️ Vui lòng nhập nội dung trước khi gửi.")
+    else:
+        api_key = st.secrets.get("GEMINI_API_KEY")
+
+        if not api_key:
+            st.error("Lỗi: Không tìm thấy khóa API. Vui lòng cấu hình 'GEMINI_API_KEY' trong Secrets.")
+        else:
+            try:
+                client = genai.Client(api_key=api_key)
+                model_name = 'gemini-2.5-flash'
+
+                # Thêm hội thoại vào lịch sử để giữ ngữ cảnh
+                conversation = "\n".join(
+                    [f"Người dùng: {m['user']}\nAI: {m['ai']}" for m in st.session_state.chat_history]
+                )
+
+                prompt = f"""
+                Bạn là một trợ lý AI chuyên về tài chính và Python.
+                Đây là hội thoại trước đó:
+                {conversation}
+
+                Câu hỏi mới: {user_input}
+                """
+
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
+
+                ai_answer = response.text.strip()
+
+                # Lưu hội thoại vào session_state
+                st.session_state.chat_history.append({"user": user_input, "ai": ai_answer})
+
+            except APIError as e:
+                st.error(f"Lỗi gọi Gemini API: {e}")
+            except Exception as e:
+                st.error(f"Đã xảy ra lỗi: {e}")
+
+# Hiển thị lịch sử hội thoại
+if st.session_state.chat_history:
+    st.markdown("### 💡 Lịch sử trò chuyện")
+    for i, chat in enumerate(reversed(st.session_state.chat_history)):
+        st.markdown(f"**🧑 Bạn:** {chat['user']}")
+        st.markdown(f"**🤖 AI:** {chat['ai']}")
+        st.markdown("---")
